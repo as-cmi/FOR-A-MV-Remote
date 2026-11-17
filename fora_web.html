@@ -1,0 +1,966 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FOR-A MV Remote</title>
+<style>
+:root {
+  --bg: #111418; --panel: #1a1e24; --panel2: #222832; --line: #2e3540;
+  --text: #e6e9ee; --muted: #8b95a3; --accent: #3d9cf0; --ok: #3ccf7a;
+  --warn: #f0b23d; --err: #f05d5d; --stage: #05070a;
+  --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--bg); color: var(--text); font: 13px/1.35 system-ui, sans-serif;
+       display: grid; grid-template-rows: auto 1fr auto; }
+button, input, select { font: inherit; color: var(--text); }
+button { background: var(--panel2); border: 1px solid var(--line); border-radius: 5px;
+         padding: 5px 10px; cursor: pointer; }
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:disabled { opacity: .45; cursor: default; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.on { background: #1d4d7a; border-color: var(--accent); }
+button.danger { border-color: #6b3434; }
+input, select { background: #0e1115; border: 1px solid var(--line); border-radius: 4px; padding: 4px 6px; }
+input[type=number] { width: 72px; font-family: var(--mono); }
+input.bad { border-color: var(--err); }
+label { color: var(--muted); }
+h3 { margin: 0 0 8px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+
+header { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; padding: 8px 14px;
+         background: var(--panel); border-bottom: 1px solid var(--line); }
+header .brand { font-weight: 700; letter-spacing: .02em; }
+header form { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+header form input { width: 120px; }
+header form input.short { width: 70px; }
+.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--err); display: inline-block; }
+.dot.ok { background: var(--ok); }
+.dot.warn { background: var(--warn); }
+#fw { color: var(--muted); font-family: var(--mono); font-size: 12px; }
+
+main { display: grid; grid-template-columns: 230px 1fr 270px; min-height: 0; }
+aside { background: var(--panel); padding: 12px; overflow: auto; min-height: 0; }
+aside.left { border-right: 1px solid var(--line); }
+aside.right { border-left: 1px solid var(--line); }
+section + section { margin-top: 18px; }
+
+.outbtns { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+.inputs { display: flex; flex-direction: column; gap: 3px; }
+.inp { display: grid; grid-template-columns: 10px 34px 1fr auto; gap: 7px; align-items: center;
+       padding: 4px 6px; border-radius: 5px; background: var(--panel2); border: 1px solid transparent; }
+.inp.active { border-color: var(--accent); }
+.inp .fmt { color: var(--muted); font-size: 11px; font-family: var(--mono); }
+.inp .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inp button { padding: 2px 7px; font-size: 11px; }
+.inp .dot { background: var(--ok); }
+.inp.loss .dot { background: var(--err); }
+.banner { background: #4a3a12; color: var(--warn); padding: 6px 8px; border-radius: 5px; margin-bottom: 8px; display: none; }
+
+.center { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; padding: 8px 12px;
+           border-bottom: 1px solid var(--line); background: var(--panel); }
+.tabs { display: flex; flex-wrap: wrap; gap: 3px; }
+.tabs button { min-width: 30px; padding: 5px 6px; }
+.toolbar .sep { width: 1px; height: 22px; background: var(--line); }
+.toolbar label { display: flex; gap: 5px; align-items: center; }
+#res { font-family: var(--mono); color: var(--muted); }
+.wrap { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 14px; position: relative; }
+#stage { position: relative; background: var(--stage); outline: 1px solid var(--line);
+         background-image: linear-gradient(#ffffff08 1px, transparent 1px), linear-gradient(90deg, #ffffff08 1px, transparent 1px);
+         touch-action: none; user-select: none; }
+.empty { color: var(--muted); text-align: center; }
+
+.win { position: absolute; border: 2px solid var(--c); background: #1a2029;
+       background: color-mix(in srgb, var(--c) 22%, #000);
+       cursor: move; overflow: hidden; }
+.win.sel { outline: 2px solid #fff; outline-offset: 1px; }
+.win.dirty { border-style: dashed; }
+.win.bad { border-color: var(--err); }
+.win .lbl { position: absolute; left: 5px; top: 3px; right: 5px; white-space: nowrap; overflow: hidden;
+            text-overflow: ellipsis; font-weight: 600; text-shadow: 0 1px 2px #000; }
+.win .lbl b { color: var(--c); }
+.win .dim { position: absolute; left: 5px; bottom: 3px; font: 10px var(--mono); color: #cfd6df; opacity: .85; white-space: nowrap; }
+.win .vid { position: absolute; border: 1px solid #ffffffe0; background: #ffffff14; pointer-events: none;
+            box-shadow: 0 0 0 9999px #00000080; }
+.win .vid.unknown { border-style: dashed; border-color: #ffffff70; }
+.win .vid span { position: absolute; right: 3px; top: 2px; font: 600 9px var(--mono); color: #ffffffc0;
+                 text-shadow: 0 1px 2px #000; white-space: nowrap; }
+.win .nosig { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+              font: 600 10px var(--mono); color: var(--err); opacity: .7; letter-spacing: .1em; pointer-events: none; }
+.h { position: absolute; width: 10px; height: 10px; background: #fff; border: 1px solid #000; display: none; }
+.win.sel .h { display: block; }
+.h[data-d=nw] { left: -1px; top: -1px; cursor: nwse-resize; } .h[data-d=se] { right: -1px; bottom: -1px; cursor: nwse-resize; }
+.h[data-d=ne] { right: -1px; top: -1px; cursor: nesw-resize; } .h[data-d=sw] { left: -1px; bottom: -1px; cursor: nesw-resize; }
+.h[data-d=n] { left: calc(50% - 5px); top: -1px; cursor: ns-resize; } .h[data-d=s] { left: calc(50% - 5px); bottom: -1px; cursor: ns-resize; }
+.h[data-d=w] { top: calc(50% - 5px); left: -1px; cursor: ew-resize; } .h[data-d=e] { top: calc(50% - 5px); right: -1px; cursor: ew-resize; }
+.mk { position: absolute; pointer-events: none; z-index: 9000; }
+.mk.t { font: 600 10px var(--mono); background: #fff; color: #000; padding: 0 3px; border-radius: 2px; }
+.mk.m { width: 5px; height: 26px; background: linear-gradient(var(--err), var(--warn), var(--ok)); }
+
+.chlist { display: flex; flex-direction: column; gap: 2px; }
+.chrow { display: flex; align-items: center; gap: 6px; padding: 3px 6px; border-radius: 4px; cursor: pointer; }
+.chrow:hover { background: var(--panel2); }
+.chrow.sel { background: #1d3550; }
+.chrow .sw { width: 10px; height: 10px; border-radius: 2px; background: var(--c); }
+.chrow .d { margin-left: auto; color: var(--warn); }
+.props { display: grid; grid-template-columns: auto 1fr 1fr; gap: 6px 8px; align-items: center; }
+.props .full { grid-column: 2 / 4; }
+.props input[type=number] { width: 100%; }
+.msg { margin-top: 8px; min-height: 18px; color: var(--err); font-size: 12px; }
+.btnrow { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.hint { color: var(--muted); font-size: 11px; margin-top: 10px; }
+
+footer { background: var(--panel); border-top: 1px solid var(--line); }
+footer .bar { display: flex; gap: 8px; align-items: center; padding: 6px 12px; }
+footer .bar input { flex: 1; font-family: var(--mono); }
+#log { height: 120px; overflow: auto; padding: 4px 12px; font: 11px/1.45 var(--mono); border-top: 1px solid var(--line); }
+#log.hide { display: none; }
+#log .err { color: var(--err); } #log .info { color: var(--accent); } #log .io { color: var(--muted); }
+#toast { position: fixed; right: 16px; bottom: 16px; background: var(--err); color: #fff; padding: 8px 12px;
+         border-radius: 6px; display: none; max-width: 420px; z-index: 99999; }
+#toast.ok { background: #1f7a48; }
+
+@media (max-width: 1000px) {
+  body { display: block; height: auto; }
+  main { display: flex; flex-direction: column; }
+  aside.left, aside.right { border: 0; border-bottom: 1px solid var(--line); overflow: visible; }
+  .wrap { height: 60vh; min-height: 300px; }
+}
+
+/* ---- vista impostazioni ---- */
+.views { display: flex; gap: 3px; margin-left: auto; }
+#settingsView { display: flex; flex-direction: column; min-height: 0; }
+#settingsView[hidden], main[hidden] { display: none; }
+.setbar { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; padding: 8px 12px;
+          background: var(--panel); border-bottom: 1px solid var(--line); }
+.setbar .note { color: var(--muted); font-size: 12px; }
+.cards { flex: 1; overflow: auto; padding: 14px; display: grid; gap: 14px;
+         grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); align-content: start; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px; min-width: 0; }
+.card.wide { grid-column: 1 / -1; }
+.card.danger { border-color: #6b3434; }
+.card h4 { margin: 0 0 10px; font-size: 13px; display: flex; gap: 8px; align-items: center; }
+.card h4 .badge { margin-left: auto; font-size: 11px; color: var(--warn); font-weight: 400; }
+.card .frm { display: grid; grid-template-columns: 1fr auto; gap: 7px 10px; align-items: center; }
+.card .frm label { color: var(--text); }
+.card table { border-collapse: collapse; width: 100%; font-size: 12px; }
+.card th { text-align: left; color: var(--muted); font-weight: 500; padding: 3px 6px; }
+.card td { padding: 3px 6px; border-top: 1px solid var(--line); }
+.card td.chg, .card .frm .chg { outline: 1px solid var(--warn); outline-offset: 1px; border-radius: 3px; }
+.card select, .card input[type=text] { max-width: 200px; }
+.card input[type=number] { width: 80px; }
+.card input[type=color] { width: 48px; height: 26px; padding: 0 2px; }
+.card .acts { display: flex; gap: 6px; justify-content: flex-end; margin-top: 10px; }
+.card .err { color: var(--err); font-size: 12px; margin-top: 6px; }
+</style>
+</head>
+<body>
+<header>
+  <span class="brand">FOR-A MV Remote</span>
+  <form id="conn" autocomplete="off">
+    <input id="host" placeholder="IP matrice">
+    <input id="port" class="short" type="number" value="2010" title="porta comandi">
+    <input id="lanid" class="short" placeholder="ID LAN">
+    <input id="lanpw" class="short" type="password" placeholder="password">
+    <button id="btnConn" class="primary" type="submit">Connetti</button>
+  </form>
+  <span><span id="dot" class="dot"></span> <span id="connTxt">non connesso</span></span>
+  <span id="fw"></span>
+  <div class="views">
+    <button id="vEditor" class="on">Editor layout</button>
+    <button id="vSettings">Impostazioni</button>
+  </div>
+</header>
+
+<main id="editor">
+  <aside class="left">
+    <div id="menuBanner" class="banner">La matrice è nel MENU: i comandi vengono rifiutati (ERR004).</div>
+    <section>
+      <h3>Uscita · layout</h3>
+      <div class="outbtns" id="outBtns"></div>
+    </section>
+    <section>
+      <h3>Ingressi · schermo intero</h3>
+      <div class="inputs" id="inputs"><div class="empty">—</div></div>
+    </section>
+  </aside>
+
+  <div class="center">
+    <div class="toolbar">
+      <span>Modifica layout</span>
+      <div class="tabs" id="tabs"></div>
+      <span id="res"></span>
+      <span class="sep"></span>
+      <label>Griglia
+        <select id="snap"><option>2</option><option selected>8</option><option>16</option><option>40</option><option>80</option></select>
+      </label>
+      <label><input type="checkbox" id="edge" checked> Aggancia ai bordi</label>
+      <label title="Invia ogni modifica alla matrice appena rilasci il mouse"><input type="checkbox" id="live" checked> Invio immediato</label>
+      <span class="sep"></span>
+      <button id="btnGrid" title="Dispone le finestre visibili in una griglia 16:9">Griglia automatica</button>
+      <button id="btnSend">Invia modifiche</button>
+      <button id="btnReload">Ricarica</button>
+      <button id="btnShow" title="Mostra questo layout sull'uscita (SDS)">Mostra in uscita</button>
+      <button id="btnSave" class="danger" title="Salva nella memoria della matrice (SLS)">Salva in memoria</button>
+    </div>
+    <div class="wrap" id="wrap">
+      <div class="empty" id="stageEmpty">Connettiti alla matrice per caricare i layout.</div>
+      <div id="stage" hidden></div>
+    </div>
+  </div>
+
+  <aside class="right">
+    <section>
+      <h3>Finestre del layout</h3>
+      <div class="chlist" id="chlist"></div>
+    </section>
+    <section id="propSec" hidden>
+      <h3 id="propTitle">Finestra</h3>
+      <div class="props">
+        <label>Visibile</label><span class="full"><input type="checkbox" id="p_on"></span>
+        <label>Layer</label><span class="full"><select id="p_layer"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></span>
+        <label>Posizione</label><input type="number" id="p_x" step="2" title="X"><input type="number" id="p_y" step="2" title="Y">
+        <label>Dimensione</label><input type="number" id="p_w" step="8" title="larghezza"><input type="number" id="p_h" step="8" title="altezza">
+        <label>Titolo</label><input type="number" id="p_tx" step="2"><input type="number" id="p_ty" step="2">
+        <label class="mtr">Meter L</label><input class="mtr" type="number" id="p_mlx" step="2"><input class="mtr" type="number" id="p_mly" step="2">
+        <label class="mtr">Meter R</label><input class="mtr" type="number" id="p_mrx" step="2"><input class="mtr" type="number" id="p_mry" step="2">
+        <label class="mtr">Meter size</label><input class="mtr" type="number" id="p_mw" min="1" max="3" title="larghezza 1-3"><input class="mtr" type="number" id="p_mh" min="1" max="10" title="altezza 1-10">
+      </div>
+      <label style="display:flex;gap:6px;margin-top:8px"><input type="checkbox" id="follow" checked> Titolo e meter seguono la finestra</label>
+      <div class="msg" id="propMsg"></div>
+      <div class="btnrow">
+        <button id="btnSendOne">Invia</button>
+        <button id="btnRevert">Annulla modifiche</button>
+      </div>
+    </section>
+    <div class="hint">
+      Trascina per spostare, usa le maniglie per ridimensionare.<br>
+      Frecce: sposta di un passo di griglia · Shift+frecce: ridimensiona.<br>
+      Posizione multipla di 2, dimensione multipla di 8, minimo 120×80.<br>
+      Riquadro chiaro: area dell'immagine secondo il segnale in ingresso (tratteggiato se in LOSS).
+    </div>
+  </aside>
+</main>
+
+<section id="settingsView" hidden>
+  <div class="setbar">
+    <div class="tabs" id="setTabs">
+      <button data-sec="system" class="on">System</button>
+      <button data-sec="layout">Layout</button>
+    </div>
+    <label id="setLayoutSel" hidden>Layout <select id="setLayout"></select></label>
+    <button id="setReload">Ricarica</button>
+    <span class="note" id="setNote"></span>
+  </div>
+  <div class="cards" id="cards"><div class="empty">Connettiti alla matrice.</div></div>
+</section>
+
+<footer>
+  <div class="bar">
+    <button id="btnLog" title="Mostra/nascondi log">Log</button>
+    <input id="raw" placeholder="Comando diretto (es. RIF01, SDS001) + Invio">
+  </div>
+  <div id="log"></div>
+</footer>
+<div id="toast"></div>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const CLOCK = 80;
+const S = {
+  connected: false, info: {}, out: null, inputs: [], logSince: 0, cfgLoaded: false,
+  L: 1, res: { w: 1920, h: 1080 }, wins: [], orig: {}, sel: null, dirty: new Set(), bad: {},
+  scale: 0.5, loading: false,
+};
+
+// ---------------------------------------------------------------- API
+async function api(path, body) {
+  const r = await fetch(path, body === undefined ? {} :
+    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const j = await r.json().catch(() => ({ error: `HTTP ${r.status}` }));
+  if (!r.ok && !("ok" in j)) throw new Error(j.error || `HTTP ${r.status}`);
+  if (j.ok === false && r.status >= 500) throw new Error(j.error);
+  return j;
+}
+let chain = Promise.resolve();
+const enqueue = fn => (chain = chain.then(fn).catch(e => toast(e.message)));
+
+let toastT;
+function toast(msg, ok = false) {
+  const t = $("toast"); t.textContent = msg; t.className = ok ? "ok" : ""; t.style.display = "block";
+  clearTimeout(toastT); toastT = setTimeout(() => (t.style.display = "none"), 4000);
+}
+
+// ---------------------------------------------------------------- stato / polling
+async function poll() {
+  try {
+    const st = await api(`/api/state?since=${S.logSince}`);
+    if (!S.cfgLoaded && st.cfg) {
+      $("host").value = st.cfg.host || ""; $("port").value = st.cfg.port || 2010;
+      $("lanid").value = st.cfg.lan_id || ""; $("lanpw").value = st.cfg.lan_password || "";
+      S.cfgLoaded = true;
+    }
+    const was = S.connected;
+    S.connected = st.connected; S.info = st.info || {};
+    S.link = st.link; S.linkErr = st.link_err || "";
+    S.out = st.output || null; S.inputs = st.inputs || [];
+    for (const e of st.log || []) addLog(e);
+    renderHeader(); renderLeft();
+    if ($("tabs").childElementCount !== nLayouts()) renderTabs();
+    const sig = S.inputs.map(i => i.code).join(",");
+    if (sig !== S.lossSig) { S.lossSig = sig; if (!drag) renderStage(); }
+    if (S.connected && S.link === "up" && S.info.channels && !S.wins.length && !S.loading) loadLayout(S.L);
+    if (!S.connected && was) clearStage();
+  } catch (e) {
+    S.connected = false; renderHeader();
+  }
+}
+setInterval(poll, 2000);
+
+function renderHeader() {
+  const rec = S.connected && S.link !== "up";
+  $("dot").className = "dot" + (rec ? " warn" : S.connected ? " ok" : "");
+  $("connTxt").textContent = !S.connected ? "non connesso" :
+    S.link === "waiting" ? "in attesa: la porta comandi è occupata da un altro client…" :
+    S.link === "reconnecting" ? "connessione persa, riconnessione…" :
+    S.info.channels ? `connesso · ${S.info.channels} ingressi` : "connesso, lettura stato…";
+  $("connTxt").title = rec ? S.linkErr : "";
+  $("fw").textContent = S.connected ? S.info.version : "";
+  $("btnConn").textContent = S.connected ? "Disconnetti" : "Connetti";
+  $("btnConn").className = S.connected ? "" : "primary";
+  const up = S.connected && S.link === "up";
+  for (const id of ["btnGrid", "btnReload", "btnShow", "btnSave", "raw"]) $(id).disabled = !up;
+  $("btnSend").disabled = !S.connected || !S.dirty.size;
+  $("btnSend").textContent = S.dirty.size ? `Invia modifiche (${S.dirty.size})` : "Invia modifiche";
+}
+
+function renderLeft() {
+  $("menuBanner").style.display = S.out && S.out.menu ? "block" : "none";
+  const ob = $("outBtns"); ob.innerHTML = "";
+  for (let n = 1; n <= nLayouts(); n++) {
+    const b = document.createElement("button");
+    b.textContent = `L${n}`; b.disabled = !S.connected;
+    if (S.out && !S.out.full && S.out.sel === n) b.classList.add("on");
+    b.onclick = () => show("layout", n);
+    ob.appendChild(b);
+  }
+  const box = $("inputs"); box.innerHTML = "";
+  if (!S.inputs.length) { box.innerHTML = '<div class="empty">—</div>'; return; }
+  for (const i of S.inputs) {
+    const row = document.createElement("div");
+    row.className = "inp" + (i.loss ? " loss" : "") + (S.out && S.out.full && S.out.sel === i.ch ? " active" : "");
+    row.innerHTML = `<span class="dot"></span><b>CH${i.ch}</b>
+      <span><div class="nm"></div><div class="fmt">${i.fmt}</div></span><button>Full</button>`;
+    row.querySelector(".nm").textContent = i.title || "";
+    row.querySelector("button").onclick = () => show("full", i.ch);
+    box.appendChild(row);
+  }
+}
+
+async function show(kind, n) {
+  const r = await api("/api/show", { kind, n }).catch(e => ({ ok: false, error: e.message }));
+  if (!r.ok) toast(r.error);
+  poll();
+}
+
+$("conn").onsubmit = async ev => {
+  ev.preventDefault();
+  if (S.connected) {
+    if (S.dirty.size && !confirm("Ci sono modifiche non inviate. Disconnettere?")) return;
+    const r = await api("/api/disconnect", {}).catch(e => ({ released: null, error: e.message }));
+    S.connected = false; clearStage(); poll();
+    if (r.released) toast("Disconnesso: porta della matrice rilasciata", true);
+    else if (r.released === false) toast("Disconnesso, ma la matrice non ha confermato la chiusura");
+    return;
+  }
+  $("btnConn").disabled = true; $("connTxt").textContent = "connessione…";
+  try {
+    await api("/api/connect", { host: $("host").value.trim(), port: +$("port").value || 2010,
+      lan_id: $("lanid").value.trim(), lan_password: $("lanpw").value.trim() });
+  } catch (e) { toast("Connessione fallita: " + e.message); }
+  $("btnConn").disabled = false; poll();
+};
+
+// ---------------------------------------------------------------- layout
+const nLayouts = () => S.info.layouts || 4;
+function renderTabs() {
+  const t = $("tabs"); t.innerHTML = "";
+  for (let n = 1; n <= nLayouts(); n++) {
+    const b = document.createElement("button");
+    b.textContent = n; if (n === S.L) b.classList.add("on");
+    b.onclick = () => {
+      if (n === S.L) return;
+      if (S.dirty.size && !confirm(`Layout ${S.L}: ${S.dirty.size} modifiche non inviate andranno perse. Continuare?`)) return;
+      loadLayout(n);
+    };
+    t.appendChild(b);
+  }
+}
+renderTabs();
+
+async function loadLayout(n) {
+  if (S.loading) return;
+  S.loading = true; S.L = n; renderTabs();
+  try {
+    const d = await api(`/api/layout/${n}`);
+    S.res = d.res; S.wins = d.windows; S.dirty.clear(); S.bad = {};
+    S.orig = Object.fromEntries(d.windows.map(w => [w.ch, { ...w }]));
+    if (!S.wins.find(w => w.ch === S.sel)) S.sel = null;
+    $("res").textContent = `${d.res.w}×${d.res.h}`;
+    $("stageEmpty").hidden = true; $("stage").hidden = false;
+    renderAll();
+  } catch (e) { toast("Errore caricamento layout: " + e.message); }
+  S.loading = false;
+}
+
+function clearStage() {
+  S.wins = []; S.sel = null; S.dirty.clear();
+  $("stage").hidden = true; $("stageEmpty").hidden = false; $("res").textContent = "";
+  renderAll();
+}
+
+const win = ch => S.wins.find(w => w.ch === ch);
+const color = ch => ch === CLOCK ? "#c8c8c8" : `hsl(${(ch * 47) % 360} 65% 58%)`;
+const name = w => w.ch === CLOCK ? "CLOCK" : `CH${w.ch}`;
+
+// ---------------------------------------------------------------- stage
+function fitStage() {
+  const wrap = $("wrap"), pad = 28;
+  const s = Math.min((wrap.clientWidth - pad) / S.res.w, (wrap.clientHeight - pad) / S.res.h);
+  S.scale = Math.max(0.05, s);
+  $("stage").style.width = S.res.w * S.scale + "px";
+  $("stage").style.height = S.res.h * S.scale + "px";
+}
+new ResizeObserver(() => { fitStage(); renderStage(); }).observe($("wrap"));
+
+function renderAll() { fitStage(); renderStage(); renderList(); renderProps(); renderHeader(); }
+
+function renderStage() {
+  const st = $("stage"); st.innerHTML = "";
+  for (const w of S.wins) {
+    if (!w.on) continue;
+    const el = document.createElement("div");
+    el.className = "win"; el.dataset.ch = w.ch;
+    el.style.setProperty("--c", color(w.ch));
+    el.innerHTML = `<div class="lbl"><b>${name(w)}</b> <span></span></div><div class="dim"></div>` +
+      ["nw", "n", "ne", "e", "se", "s", "sw", "w"].map(d => `<div class="h" data-d="${d}"></div>`).join("");
+    el.querySelector(".lbl span").textContent = w.title || "";
+    const inp = S.inputs.find(i => i.ch === w.ch);
+    if (inp && inp.loss) el.insertAdjacentHTML("beforeend", '<div class="nosig">NO SIGNAL</div>');
+    el.addEventListener("pointerdown", onDown);
+    st.appendChild(el);
+    place(el, w);
+  }
+  renderMarkers();
+}
+
+function place(el, w) {
+  const k = S.scale;
+  Object.assign(el.style, { left: w.x * k + "px", top: w.y * k + "px", width: w.w * k + "px",
+    height: w.h * k + "px", zIndex: w.layer * 100 + (w.ch === S.sel ? 99 : w.ch % 99) });
+  el.classList.toggle("sel", w.ch === S.sel);
+  el.classList.toggle("dirty", S.dirty.has(w.ch));
+  el.classList.toggle("bad", !!S.bad[w.ch]);
+  el.querySelector(".dim").textContent = `${w.w}×${w.h} · ${w.x},${w.y} · L${w.layer}`;
+  placeVideo(el, w);
+}
+
+// proporzione reale dell'immagine: dal formato del segnale in ingresso
+const HD = ["00", "01", "02", "10", "11"], SD = ["20", "21", "30", "31"];
+function videoAspect(ch) {
+  const i = S.inputs.find(x => x.ch === ch);
+  if (!i) return null;
+  if (HD.includes(i.code)) return { r: 16 / 9, label: "16:9" };
+  if (SD.includes(i.code)) return { r: 4 / 3, label: "4:3" };
+  const m = /^(\d+)x(\d+)$/.exec(i.fmt || "");
+  if (m) return { r: m[1] / m[2], label: `${m[1]}×${m[2]}` };
+  return { r: 16 / 9, label: "16:9 ?", unknown: true };  // LOSS o formato non riconosciuto
+}
+
+// riquadro centrato: Mode1/Mode2 mantengono le proporzioni, Mode3 (2) stira l'immagine
+function placeVideo(el, w) {
+  let v = el.querySelector(".vid");
+  const a = w.ch === CLOCK ? null : videoAspect(w.ch);
+  if (!a) { if (v) v.remove(); return; }
+  if (!v) { v = document.createElement("div"); v.className = "vid"; v.innerHTML = "<span></span>"; el.prepend(v); }
+  const W = w.w * S.scale - 4, H = w.h * S.scale - 4;  // area interna al bordo di 2 px
+  let iw = W, ih = H;
+  if (w.mode !== 2) { if (W / H > a.r) iw = H * a.r; else ih = W / a.r; }
+  Object.assign(v.style, { left: (W - iw) / 2 + "px", top: (H - ih) / 2 + "px",
+                           width: iw + "px", height: ih + "px" });
+  v.classList.toggle("unknown", !!a.unknown);
+  v.querySelector("span").textContent = w.mode === 2 ? `${a.label} stirato` : a.label;
+}
+
+function renderMarkers() {
+  const st = $("stage");
+  st.querySelectorAll(".mk").forEach(m => m.remove());
+  const w = win(S.sel);
+  if (!w || !w.on) return;
+  const k = S.scale;
+  const add = (cls, x, y, txt) => {
+    const m = document.createElement("div"); m.className = "mk " + cls;
+    m.style.left = x * k + "px"; m.style.top = y * k + "px"; if (txt) m.textContent = txt;
+    st.appendChild(m);
+  };
+  add("t", w.tx, w.ty, "T");
+  if (w.ch !== CLOCK) { add("m", w.mlx, w.mly); add("m", w.mrx, w.mry); }
+}
+
+function refresh(ch) {
+  const el = $("stage").querySelector(`.win[data-ch="${ch}"]`);
+  const w = win(ch);
+  if (el && w) place(el, w);
+  renderMarkers(); renderList(); renderHeader();
+  if (ch === S.sel) fillProps();
+}
+
+// ---------------------------------------------------------------- geometria
+const even = v => Math.round(v / 2) * 2;
+const r8 = v => Math.round(v / 8) * 8;
+const clamp = (v, a, b) => Math.min(Math.max(v, a), b);
+const grid = () => +$("snap").value;
+
+function edgeCands(axis, ch) {
+  const c = [0, axis === "x" ? S.res.w : S.res.h];
+  for (const o of S.wins) if (o.on && o.ch !== ch)
+    axis === "x" ? c.push(o.x, o.x + o.w) : c.push(o.y, o.y + o.h);
+  return c;
+}
+// aggancia un bordo: prima ai bordi delle altre finestre, poi alla griglia
+function snapEdge(v, axis, ch) {
+  if ($("edge").checked) {
+    const thr = 10 / S.scale;
+    let best = null;
+    for (const c of edgeCands(axis, ch)) if (Math.abs(c - v) <= thr && (best === null || Math.abs(c - v) < Math.abs(best - v))) best = c;
+    if (best !== null) return best;
+  }
+  return Math.round(v / grid()) * grid();
+}
+// spostamento: aggancia il bordo sinistro o destro (il più vicino)
+function snapMove(v, size, axis, ch) {
+  const a = snapEdge(v, axis, ch), b = snapEdge(v + size, axis, ch) - size;
+  return Math.abs(a - v) <= Math.abs(b - v) ? a : b;
+}
+
+function moveTo(w, x, y) {
+  w.x = clamp(even(x), 0, Math.min(1800, S.res.w - w.w));
+  w.y = clamp(even(y), 0, Math.min(1120, S.res.h - w.h));
+}
+
+function resize(w, o, d, dx, dy) {
+  if (d.includes("e")) {
+    const right = snapEdge(o.x + o.w + dx, "x", w.ch);
+    w.w = clamp(r8(right - o.x), 120, Math.min(1920, S.res.w - o.x));
+  }
+  if (d.includes("w")) {
+    const R = o.x + o.w, left = snapEdge(o.x + dx, "x", w.ch);
+    w.w = clamp(r8(R - left), Math.max(120, R - 1800), Math.min(1920, R)); w.x = R - w.w;
+  }
+  if (d.includes("s")) {
+    const bottom = snapEdge(o.y + o.h + dy, "y", w.ch);
+    w.h = clamp(r8(bottom - o.y), 80, Math.min(1200, S.res.h - o.y));
+  }
+  if (d.includes("n")) {
+    const B = o.y + o.h, top = snapEdge(o.y + dy, "y", w.ch);
+    w.h = clamp(r8(B - top), Math.max(80, B - 1120), Math.min(1200, B)); w.y = B - w.h;
+  }
+}
+
+// titolo e meter mantengono la posizione relativa alla finestra
+function follow(o, w) {
+  if (!$("follow").checked || !o.w || !o.h) return;
+  const fx = v => clamp(even(w.x + (v - o.x) * w.w / o.w), 0, S.res.w);
+  const fy = v => clamp(even(w.y + (v - o.y) * w.h / o.h), 0, S.res.h);
+  w.tx = fx(o.tx); w.ty = fy(o.ty);
+  if (w.ch !== CLOCK) { w.mlx = fx(o.mlx); w.mly = fy(o.mly); w.mrx = fx(o.mrx); w.mry = fy(o.mry); }
+}
+
+function validate(w) {
+  if (!w.on) return [];
+  const e = [];
+  if (w.x % 2 || w.y % 2) e.push("posizione multipla di 2");
+  if (w.w % 8 || w.h % 8) e.push("dimensione multipla di 8");
+  if (w.w < 120 || w.h < 80 || w.w > 1920 || w.h > 1200) e.push("dimensione 120×80 … 1920×1200");
+  if (w.x > 1800 || w.y > 1120) e.push("posizione massima 1800,1120");
+  if (w.x < 0 || w.y < 0 || w.x + w.w > S.res.w || w.y + w.h > S.res.h) e.push(`fuori dallo schermo ${S.res.w}×${S.res.h}`);
+  if (w.tx % 2 || w.ty % 2 || w.tx > S.res.w || w.ty > S.res.h) e.push("titolo: valori pari, dentro lo schermo");
+  if (w.ch !== CLOCK) {
+    if ([w.mlx, w.mly, w.mrx, w.mry].some(v => v % 2 || v < 0)) e.push("meter: valori pari");
+    if (w.mw < 1 || w.mw > 3 || w.mh < 1 || w.mh > 10) e.push("meter size: 1-3 / 1-10");
+  }
+  return e;
+}
+
+function changed(ch) {
+  const w = win(ch);
+  const e = validate(w);
+  if (e.length) S.bad[ch] = e.join("; "); else delete S.bad[ch];
+  const o = S.orig[ch];
+  const same = o && Object.keys(o).every(k => k === "title" || o[k] === w[k]);
+  same ? S.dirty.delete(ch) : S.dirty.add(ch);
+}
+
+// ---------------------------------------------------------------- mouse
+let drag = null;
+function onDown(ev) {
+  if (ev.button !== 0) return;
+  const el = ev.currentTarget, ch = +el.dataset.ch;
+  select(ch);
+  const w = win(ch);
+  drag = { ch, d: ev.target.dataset.d || "move", x0: ev.clientX, y0: ev.clientY, o: { ...w }, moved: false };
+  el.setPointerCapture(ev.pointerId);
+  el.addEventListener("pointermove", onMove);
+  el.addEventListener("pointerup", onUp, { once: true });
+  ev.preventDefault();
+}
+function onMove(ev) {
+  if (!drag) return;
+  const w = win(drag.ch), o = drag.o;
+  const dx = (ev.clientX - drag.x0) / S.scale, dy = (ev.clientY - drag.y0) / S.scale;
+  if (!drag.moved && Math.abs(dx) * S.scale < 3 && Math.abs(dy) * S.scale < 3) return;
+  drag.moved = true;
+  if (drag.d === "move") moveTo(w, snapMove(o.x + dx, o.w, "x", w.ch), snapMove(o.y + dy, o.h, "y", w.ch));
+  else resize(w, o, drag.d, dx, dy);
+  follow(o, w);
+  changed(w.ch); refresh(w.ch);
+}
+function onUp(ev) {
+  ev.currentTarget.removeEventListener("pointermove", onMove);
+  const d = drag; drag = null;
+  if (d && d.moved && $("live").checked) sendWin(d.ch);
+}
+
+// tastiera: frecce = sposta, shift+frecce = ridimensiona
+let keyT;
+document.addEventListener("keydown", ev => {
+  if (S.sel === null || $("editor").hidden || /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
+  const dir = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[ev.key];
+  if (!dir) return;
+  ev.preventDefault();
+  const w = win(S.sel); if (!w || !w.on) return;
+  const o = { ...w };
+  if (ev.shiftKey) {
+    const st = Math.max(8, r8(grid()));
+    w.w = clamp(w.w + dir[0] * st, 120, Math.min(1920, S.res.w - w.x));
+    w.h = clamp(w.h + dir[1] * st, 80, Math.min(1200, S.res.h - w.y));
+  } else moveTo(w, w.x + dir[0] * Math.max(2, grid()), w.y + dir[1] * Math.max(2, grid()));
+  follow(o, w); changed(w.ch); refresh(w.ch);
+  if ($("live").checked) { clearTimeout(keyT); keyT = setTimeout(() => sendWin(w.ch), 400); }
+});
+
+// ---------------------------------------------------------------- pannello destro
+function select(ch) {
+  const prev = S.sel; S.sel = ch;
+  for (const c of [prev, ch]) if (c !== null) { const el = $("stage").querySelector(`.win[data-ch="${c}"]`); if (el && win(c)) place(el, win(c)); }
+  renderMarkers(); renderList(); renderProps();
+}
+
+function renderList() {
+  const box = $("chlist"); box.innerHTML = "";
+  for (const w of S.wins) {
+    const r = document.createElement("div");
+    r.className = "chrow" + (w.ch === S.sel ? " sel" : "");
+    r.style.setProperty("--c", color(w.ch));
+    r.innerHTML = `<input type="checkbox" ${w.on ? "checked" : ""} title="visibile"><span class="sw"></span><b>${name(w)}</b>
+      <span class="nm" style="color:var(--muted)"></span><span class="d">${S.dirty.has(w.ch) ? "●" : ""}</span>`;
+    r.querySelector(".nm").textContent = w.on ? `${w.w}×${w.h}` : "nascosta";
+    r.querySelector("input").onclick = ev => { ev.stopPropagation(); setOn(w.ch, ev.target.checked); };
+    r.onclick = () => select(w.ch);
+    box.appendChild(r);
+  }
+}
+
+function setOn(ch, on) {
+  const w = win(ch);
+  w.on = on;
+  if (on && !w.w) {  // finestra prima spenta: valori di partenza
+    Object.assign(w, { layer: 1, w: 480, h: 272 });
+    moveTo(w, (S.res.w - w.w) / 2, (S.res.h - w.h) / 2);
+    Object.assign(w, { tx: w.x + 8, ty: w.y + w.h - 40 });
+    if (ch !== CLOCK) Object.assign(w, { mlx: w.x + 8, mly: w.y + 8, mrx: w.x + w.w - 24, mry: w.y + 8, mw: 1, mh: 1 });
+  }
+  changed(ch); S.sel = ch; renderStage(); renderList(); renderProps(); renderHeader();
+  if ($("live").checked) sendWin(ch);
+}
+
+const PF = ["x", "y", "w", "h", "tx", "ty", "mlx", "mly", "mrx", "mry", "mw", "mh"];
+function renderProps() {
+  const w = win(S.sel);
+  $("propSec").hidden = !w;
+  if (!w) return;
+  $("propTitle").textContent = `${name(w)}${w.title ? " · " + w.title : ""}`;
+  document.querySelectorAll(".mtr").forEach(e => (e.style.display = w.ch === CLOCK ? "none" : ""));
+  fillProps();
+}
+function fillProps() {
+  const w = win(S.sel); if (!w) return;
+  $("p_on").checked = w.on; $("p_layer").value = w.layer || 1;
+  for (const k of PF) { const i = $("p_" + k); if (document.activeElement !== i) i.value = w[k]; i.disabled = !w.on; }
+  $("p_layer").disabled = !w.on;
+  $("propMsg").textContent = S.bad[w.ch] || "";
+  for (const k of PF) $("p_" + k).classList.toggle("bad", !!S.bad[w.ch]);
+}
+for (const k of PF) $("p_" + k).addEventListener("change", ev => {
+  const w = win(S.sel); if (!w) return;
+  const o = { ...w };
+  w[k] = Math.round(+ev.target.value || 0);
+  if (["x", "y", "w", "h"].includes(k)) follow(o, w);
+  changed(w.ch); refresh(w.ch);
+  if ($("live").checked && !S.bad[w.ch]) sendWin(w.ch);
+});
+$("p_layer").onchange = ev => { const w = win(S.sel); w.layer = +ev.target.value; changed(w.ch); refresh(w.ch); if ($("live").checked) sendWin(w.ch); };
+$("p_on").onchange = ev => setOn(S.sel, ev.target.checked);
+$("btnSendOne").onclick = () => sendWin(S.sel);
+$("btnRevert").onclick = () => {
+  const o = S.orig[S.sel]; if (!o) return;
+  Object.assign(win(S.sel), o); S.dirty.delete(S.sel); delete S.bad[S.sel];
+  renderStage(); renderList(); renderProps(); renderHeader();
+};
+
+// ---------------------------------------------------------------- invio
+function sendWin(ch) {
+  const L = S.L;
+  return enqueue(async () => {
+    const w = win(ch);
+    if (!w || L !== S.L) return;
+    if (S.bad[ch]) { toast(`${name(w)}: ${S.bad[ch]}`); return; }
+    const r = await api(`/api/layout/${L}/window`, { window: w, res_w: S.res.w, res_h: S.res.h });
+    if (L !== S.L) return;
+    if (r.ok) {
+      Object.assign(w, r.window, { title: w.title });
+      S.orig[ch] = { ...w }; S.dirty.delete(ch); delete S.bad[ch];
+    } else {
+      S.bad[ch] = r.error; toast(`${name(w)}: ${r.error}`);
+    }
+    refresh(ch);
+  });
+}
+
+$("btnSend").onclick = () => { for (const ch of [...S.dirty]) sendWin(ch); };
+$("btnReload").onclick = () => {
+  if (S.dirty.size && !confirm("Scartare le modifiche non inviate e ricaricare dalla matrice?")) return;
+  loadLayout(S.L);
+};
+$("btnShow").onclick = () => show("layout", S.L);
+$("btnSave").onclick = async () => {
+  if (S.dirty.size) { toast("Invia prima le modifiche in sospeso."); return; }
+  if (!confirm(`Salvare il layout ${S.L} nella memoria della matrice?\nSovrascrive il layout ${S.L} salvato.`)) return;
+  const r = await api(`/api/layout/${S.L}/save`, {}).catch(e => ({ ok: false, error: e.message }));
+  r.ok ? toast(`Layout ${S.L} salvato`, true) : toast(r.error);
+};
+
+$("btnGrid").onclick = () => {
+  const vis = S.wins.filter(w => w.on && w.ch !== CLOCK).sort((a, b) => a.ch - b.ch);
+  if (!vis.length) return;
+  const n = vis.length, cols = Math.ceil(Math.sqrt(n)), rows = Math.ceil(n / cols);
+  const cw = Math.floor(S.res.w / cols / 8) * 8, chh = Math.floor(S.res.h / rows / 8) * 8;
+  let w = Math.min(cw, Math.floor(chh * 16 / 9 / 8) * 8), h = Math.floor(w * 9 / 16 / 8) * 8;
+  const ox = even((S.res.w - cols * cw) / 2), oy = even((S.res.h - rows * chh) / 2);
+  vis.forEach((win, i) => {
+    const o = { ...win };
+    win.w = w; win.h = h; win.layer = win.layer || 1;
+    moveTo(win, ox + (i % cols) * cw + (cw - w) / 2, oy + Math.floor(i / cols) * chh + (chh - h) / 2);
+    follow(o, win); changed(win.ch);
+  });
+  renderAll();
+  if ($("live").checked) for (const v of vis) if (S.dirty.has(v.ch)) sendWin(v.ch);
+};
+
+// ---------------------------------------------------------------- log / comandi diretti
+function addLog(e) {
+  S.logSince = Math.max(S.logSince, e.id);
+  if (e.kind === "io" && /^(RDP0|RIF\d\d) ->/.test(e.text)) return; // polling: non intasa il log
+  const box = $("log"), d = document.createElement("div");
+  d.className = e.kind; d.textContent = `${e.t}  ${e.text}`;
+  box.appendChild(d);
+  while (box.childElementCount > 400) box.firstChild.remove();
+  if (logPinned) box.scrollTop = box.scrollHeight;
+}
+// il log segue le nuove righe finché l'utente non scorre verso l'alto
+let logPinned = true;
+$("log").addEventListener("scroll", ev => {
+  const b = ev.target; logPinned = b.scrollTop + b.clientHeight >= b.scrollHeight - 4;
+});
+$("btnLog").onclick = () => $("log").classList.toggle("hide");
+$("raw").addEventListener("keydown", async ev => {
+  if (ev.key !== "Enter" || !ev.target.value.trim()) return;
+  const cmd = ev.target.value; ev.target.value = "";
+  const r = await api("/api/raw", { cmd }).catch(e => ({ resp: "", decoded: e.message }));
+  addLog({ id: 0, t: "", kind: "info", text: `↳ ${r.decoded}` });
+  poll();
+});
+
+// ---------------------------------------------------------------- impostazioni
+const SET = { schema: null, sec: "system", L: 1, data: {}, dirty: {}, err: {}, busy: false };
+
+function showView(v) {
+  $("editor").hidden = v !== "editor"; $("settingsView").hidden = v !== "settings";
+  $("vEditor").classList.toggle("on", v === "editor"); $("vSettings").classList.toggle("on", v === "settings");
+  if (v === "settings") openSettings(); else fitStage();
+}
+$("vEditor").onclick = () => showView("editor");
+$("vSettings").onclick = () => {
+  if (S.dirty.size && !confirm("Ci sono modifiche alle finestre non inviate. Passare alle impostazioni?")) return;
+  showView("settings");
+};
+for (const b of $("setTabs").children) b.onclick = () => {
+  if (Object.keys(SET.dirty).length && !confirm("Modifiche non applicate andranno perse. Continuare?")) return;
+  SET.sec = b.dataset.sec;
+  for (const x of $("setTabs").children) x.classList.toggle("on", x === b);
+  loadSettings();
+};
+$("setLayout").onchange = ev => {
+  if (Object.keys(SET.dirty).length && !confirm("Modifiche non applicate andranno perse. Continuare?")) {
+    ev.target.value = SET.L; return;
+  }
+  SET.L = +ev.target.value; loadSettings();
+};
+$("setReload").onclick = () => {
+  if (Object.keys(SET.dirty).length && !confirm("Scartare le modifiche non applicate?")) return;
+  loadSettings();
+};
+
+async function openSettings() {
+  if (!S.connected || S.link !== "up") { $("cards").innerHTML = '<div class="empty">Connettiti alla matrice.</div>'; return; }
+  try { if (!SET.schema) SET.schema = await api("/api/settings/schema"); }
+  catch (e) { toast(e.message); return; }
+  const sel = $("setLayout");
+  if (sel.options.length !== nLayouts()) {
+    sel.innerHTML = "";
+    for (let n = 1; n <= nLayouts(); n++) sel.add(new Option(`Layout ${n}`, n));
+    sel.value = SET.L;
+  }
+  loadSettings();
+}
+
+async function loadSettings() {
+  if (SET.busy) return;
+  SET.busy = true;
+  $("setLayoutSel").hidden = SET.sec !== "layout";
+  $("setNote").textContent = "lettura dalla matrice…";
+  try {
+    const d = await api(SET.sec === "system" ? "/api/settings/system" : `/api/settings/layout/${SET.L}`);
+    SET.data = Object.fromEntries(d.map(g => [g.id, g.rows]));
+    SET.dirty = {}; SET.err = {};
+    $("setNote").textContent = SET.sec === "layout" ? `Impostazioni del layout ${SET.L}` : "Impostazioni generali della matrice";
+    renderSettings();
+  } catch (e) { $("setNote").textContent = ""; toast("Lettura impostazioni: " + e.message); }
+  SET.busy = false;
+}
+
+function control(spec, value, onchange) {
+  let el;
+  if (spec.type === "bool") {
+    el = document.createElement("input"); el.type = "checkbox"; el.checked = !!value;
+    el.onchange = () => onchange(el.checked);
+  } else if (spec.type === "enum") {
+    el = document.createElement("select");
+    spec.options.forEach((o, i) => el.add(new Option(o, i)));
+    if (value === null || value >= spec.options.length) el.add(new Option(`? (${value})`, value ?? ""));
+    el.value = value ?? ""; el.onchange = () => onchange(+el.value);
+  } else if (spec.type === "int") {
+    el = document.createElement("input"); el.type = "number"; el.min = spec.min; el.max = spec.max;
+    el.value = value ?? ""; el.onchange = () => onchange(+el.value);
+  } else if (spec.type === "rgb") {
+    el = document.createElement("input"); el.type = "color"; el.value = value || "#ffffff";
+    el.onchange = () => onchange(el.value);
+  } else {
+    el = document.createElement("input"); el.type = "text"; el.maxLength = spec.max || 16;
+    el.value = value ?? ""; el.onchange = () => onchange(el.value);
+  }
+  return el;
+}
+
+function setChange(gid, read, field, val, cell) {
+  const k = `${gid}|${read}`;
+  const row = SET.data[gid].find(r => r.read === read);
+  const d = SET.dirty[k] || (SET.dirty[k] = {});
+  if (row.values[field] === val) delete d[field]; else d[field] = val;
+  if (!Object.keys(d).length) delete SET.dirty[k];
+  cell.classList.toggle("chg", field in (SET.dirty[k] || {}));
+  const card = cell.closest(".card");
+  card.querySelector(".apply").disabled = !Object.keys(SET.dirty).some(x => x.startsWith(gid + "|"));
+  card.querySelector(".badge").textContent = card.querySelector(".apply").disabled ? "" : "modifiche da applicare";
+}
+
+function renderSettings() {
+  const box = $("cards"); box.innerHTML = "";
+  for (const g of SET.schema.filter(g => g.sec === SET.sec)) {
+    const rows = SET.data[g.id] || [];
+    const card = document.createElement("div");
+    card.className = "card" + (g.danger ? " danger" : "") + (g.per && g.fields.length > 2 ? " wide" : "");
+    card.innerHTML = `<h4><span></span><span class="badge"></span></h4>`;
+    card.querySelector("h4 span").textContent = g.title;
+    if (g.per || g.multi) {
+      const t = document.createElement("table");
+      const hr = t.insertRow();
+      hr.insertCell().outerHTML = "<th></th>";
+      for (const f of g.fields) { const th = document.createElement("th"); th.textContent = f.label || "Usa"; hr.appendChild(th); }
+      for (const r of rows) {
+        const tr = t.insertRow();
+        tr.insertCell().textContent = r.label;
+        if (r.error) { const c = tr.insertCell(); c.colSpan = g.fields.length; c.textContent = r.error; c.style.color = "var(--muted)"; continue; }
+        for (const f of g.fields) {
+          const c = tr.insertCell(), pend = SET.dirty[`${g.id}|${r.read}`] || {};
+          c.appendChild(control(f.spec, f.name in pend ? pend[f.name] : r.values[f.name],
+                                v => setChange(g.id, r.read, f.name, v, c)));
+          if (f.name in pend) c.classList.add("chg");
+        }
+      }
+      card.appendChild(t);
+    } else {
+      const frm = document.createElement("div"); frm.className = "frm";
+      const r = rows[0];
+      if (!r || r.error) frm.textContent = r ? r.error : "—";
+      else for (const f of g.fields) {
+        const lb = document.createElement("label"); lb.textContent = f.label;
+        const wrap = document.createElement("span"), pend = SET.dirty[`${g.id}|${r.read}`] || {};
+        wrap.appendChild(control(f.spec, f.name in pend ? pend[f.name] : r.values[f.name],
+                                 v => setChange(g.id, r.read, f.name, v, wrap)));
+        if (f.name in pend) wrap.classList.add("chg");
+        frm.append(lb, wrap);
+      }
+      card.appendChild(frm);
+    }
+    const err = document.createElement("div"); err.className = "err"; err.textContent = SET.err[g.id] || "";
+    const acts = document.createElement("div"); acts.className = "acts";
+    acts.innerHTML = '<button class="apply primary" disabled>Applica</button>';
+    acts.querySelector(".apply").onclick = () => applyGroup(g);
+    card.append(err, acts);
+    if (Object.keys(SET.dirty).some(x => x.startsWith(g.id + "|"))) {
+      acts.querySelector(".apply").disabled = false;
+      card.querySelector(".badge").textContent = "modifiche da applicare";
+    }
+    box.appendChild(card);
+  }
+}
+
+async function applyGroup(g) {
+  const keys = Object.keys(SET.dirty).filter(k => k.startsWith(g.id + "|"));
+  if (!keys.length) return;
+  if (g.danger && !confirm(`"${g.title}": la modifica cambia il segnale in uscita della matrice. Applicare?`)) return;
+  const errs = [];
+  for (const k of keys) {
+    const read = k.split("|")[1];
+    try {
+      const r = await api("/api/settings", { group: g.id, read, changes: SET.dirty[k] });
+      if (r.ok) {
+        SET.data[g.id].find(x => x.read === read).values = r.values;
+        delete SET.dirty[k];
+      } else errs.push(`${read}: ${r.error || "errore"}`);
+    } catch (e) { errs.push(`${read}: ${e.message}`); }
+  }
+  SET.err[g.id] = errs.join(" · ");
+  if (errs.length) toast(`${g.title}: ${errs[0]}`); else toast(`${g.title}: applicato`, true);
+  renderSettings();
+  poll();
+}
+
+poll();
+</script>
+</body>
+</html>

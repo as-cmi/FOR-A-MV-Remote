@@ -1,0 +1,25 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "fora-web",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "fora_web.py",
+        "--http-port",
+        "8080"
+      ],
+      "port": 8080
+    },
+    {
+      "name": "fora-web-test",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "fora_web.py",
+        "--http-port",
+        "18110"
+      ],
+      "port": 18110
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+# credenziali salvate dall'interfaccia (IP, ID e password LAN)
+fora_web.json
+
+# software e documentazione FOR-A (proprietari, non redistribuibili)
+originale/
+*.pdf
+
+# report di scansione: l'intestazione contiene il prefisso ID+password
+discover_*.txt
+brute_*.txt
+
+# file generati
+dist/
+build/
+__pycache__/
+*.pyc
